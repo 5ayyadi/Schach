@@ -1,93 +1,172 @@
-# schach
+# Chess Game - Docker Setup
 
+This Docker Compose setup runs the entire chess game application with all its dependencies.
 
+## Architecture
 
-## Getting started
+The application consists of four services that start in the following order:
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+1. **MongoDB** - Database for storing game data and user information
+2. **RabbitMQ** - Message queue for real-time game communication
+3. **Backend** - FastAPI server (depends on MongoDB and RabbitMQ)
+4. **Frontend** - React/Vite development server (depends on Backend)
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+## Prerequisites
 
-## Add your files
+- Docker and Docker Compose installed on your system
+- Ports 3000, 8000, 5672, 15672, and 27017 available on your host machine
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+## Quick Start
+
+1. Clone the repository and navigate to the project root:
+   ```bash
+   cd /path/to/3-schach
+   ```
+
+2. Start all services:
+   ```bash
+   docker-compose up --build
+   ```
+
+3. Wait for all services to start (this may take a few minutes on first run)
+
+4. Access the application:
+   - **Frontend**: http://localhost:3000
+   - **Backend API**: http://localhost:8000
+   - **API Documentation**: http://localhost:8000/docs
+   - **RabbitMQ Management**: http://localhost:15672 (guest/guest)
+
+## Service Details
+
+### MongoDB
+- **Port**: 27017
+- **Database**: chess_game
+- **Credentials**: admin/password
+- **Initialization**: Runs init-mongo.js on first startup
+
+### RabbitMQ
+- **AMQP Port**: 5672
+- **Management UI**: 15672
+- **Credentials**: guest/guest
+
+### Backend (FastAPI)
+- **Port**: 8000
+- **Health Check**: http://localhost:8000/api/health
+- **Auto-reload**: Enabled for development
+- **Environment Variables**:
+  - `DEBUG=true`
+  - `MONGODB_URL=mongodb://admin:password@mongodb:27017/chess_game?authSource=admin`
+  - `RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/`
+
+### Frontend (React/Vite)
+- **Port**: 3000
+- **Hot Reload**: Enabled for development
+- **Environment Variables**:
+  - `VITE_API_URL=http://localhost:8000/api`
+  - `VITE_WS_URL=ws://localhost:8000/ws`
+
+## Development Commands
+
+### Start all services
+```bash
+docker-compose up
+```
+
+### Start services in background
+```bash
+docker-compose up -d
+```
+
+### Rebuild and start (after code changes)
+```bash
+docker-compose up --build
+```
+
+### Stop all services
+```bash
+docker-compose down
+```
+
+### Stop and remove volumes (clean slate)
+```bash
+docker-compose down -v
+```
+
+### View logs
+```bash
+# All services
+docker-compose logs
+
+# Specific service
+docker-compose logs backend
+docker-compose logs frontend
+docker-compose logs mongodb
+docker-compose logs rabbitmq
+```
+
+### Execute commands in running containers
+```bash
+# Backend shell
+docker-compose exec backend bash
+
+# Frontend shell
+docker-compose exec frontend sh
+
+# MongoDB shell
+docker-compose exec mongodb mongosh -u admin -p password --authenticationDatabase admin
+```
+
+## Troubleshooting
+
+### Services won't start
+1. Check if required ports are available:
+   ```bash
+   netstat -tulpn | grep -E ':(3000|8000|5672|15672|27017)'
+   ```
+
+2. Check service health:
+   ```bash
+   docker-compose ps
+   ```
+
+### Backend can't connect to database
+- Wait for MongoDB to be fully initialized (check logs)
+- Verify MongoDB is healthy: `docker-compose exec mongodb mongosh --eval "db.runCommand('ping')"`
+
+### Frontend can't reach backend
+- Verify backend is running and healthy: `curl http://localhost:8000/api/health`
+- Check backend logs for errors: `docker-compose logs backend`
+
+### Reset everything
+```bash
+docker-compose down -v --remove-orphans
+docker-compose up --build
+```
+
+## Production Notes
+
+For production deployment, consider:
+
+1. Change default passwords and secrets
+2. Use environment-specific configurations
+3. Set up proper logging and monitoring
+4. Use production-optimized Docker images
+5. Implement proper backup strategies for MongoDB
+6. Set up SSL/TLS termination
+7. Use Docker secrets for sensitive data
+
+## File Structure
 
 ```
-cd existing_repo
-git remote add origin https://gitlab.rlp.net/awt-final-project/schach.git
-git branch -M main
-git push -uf origin main
+.
+├── docker-compose.yml          # Main orchestration file
+├── backend/
+│   ├── Dockerfile             # Backend container definition
+│   ├── .dockerignore          # Backend build exclusions
+│   └── ...                    # Backend source code
+├── frontend/
+│   ├── Dockerfile             # Frontend container definition
+│   ├── .dockerignore          # Frontend build exclusions
+│   └── ...                    # Frontend source code
+└── README.md                  # This file
 ```
-
-## Integrate with your tools
-
-- [ ] [Set up project integrations](https://gitlab.rlp.net/awt-final-project/schach/-/settings/integrations)
-
-## Collaborate with your team
-
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
-
-## Test and Deploy
-
-Use the built-in continuous integration in GitLab.
-
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
-
-***
-
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
-
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.

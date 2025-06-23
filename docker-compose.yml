@@ -1,0 +1,105 @@
+services:
+  # Database - MongoDB
+  mongodb:
+    image: mongo:7.0
+    container_name: chess-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: chess_game
+    volumes:
+      - mongodb_data:/data/db
+      - ./backend/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    networks:
+      - chess-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh mongodb://localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Message Queue - RabbitMQ
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: chess-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"    # AMQP port
+      - "15672:15672"  # Management UI port
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - chess-network
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend - FastAPI
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: chess-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=true
+      - MONGODB_URL=mongodb://admin:password@mongodb:27017/chess_game?authSource=admin
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - HOST=0.0.0.0
+      - PORT=8000
+      - SECRET_KEY=your-secret-key-change-in-production-please-make-it-long-and-secure
+    volumes:
+      - ./backend:/app
+    networks:
+      - chess-network
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: curl -f http://localhost:8000/ || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend - React/Vite
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: chess-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://localhost:8000/api
+      - VITE_WS_URL=ws://localhost:8000/ws
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - chess-network
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  mongodb_data:
+    driver: local
+  rabbitmq_data:
+    driver: local
+
+networks:
+  chess-network:
+    driver: bridge
