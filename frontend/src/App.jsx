@@ -33,7 +33,7 @@ function App() {
     <Router>
       <div className="app">
         <Routes>
-          <Route path="/" element={<LandingPage />} />
+          <Route path="/" element={<LandingPage user={user} />} />
           <Route path="/auth" element={<AuthPage setUser={setUser} />} />
           <Route path="/setup" element={<GameSetupPage user={user} />} />
           <Route path="/game/:gameId" element={<GamePage user={user} />} />
