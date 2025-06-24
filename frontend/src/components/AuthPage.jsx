@@ -62,49 +62,70 @@ function AuthPage({ setUser }) {
   }
 
   return (
-    <div className="page">
-      <div className="container">
+    <div className="auth-page">
+      <div className="auth-container">
         {isGameRedirect && (
-          <div className="info" style={{ marginBottom: '1rem', color: '#2c3e50', background: '#eaf6ff', padding: '0.75rem', borderRadius: '6px' }}>
-            Please log in to join the game.
+          <div style={{ 
+            marginBottom: '1.5rem', 
+            color: '#81b64c', 
+            background: 'rgba(129, 182, 76, 0.1)', 
+            padding: '1rem', 
+            borderRadius: '8px',
+            border: '1px solid rgba(129, 182, 76, 0.3)',
+            fontSize: '0.9rem',
+            fontWeight: '500',
+            textAlign: 'center'
+          }}>
+            🎯 Please log in to join the game
           </div>
         )}
-        <h1 className="title">{isLogin ? 'Welcome Back' : 'Create Account'}</h1>
-        <p className="subtitle">
+        
+        <h1 className="auth-title">
+          {isLogin ? 'Sign In' : 'Create Account'}
+        </h1>
+        <p className="auth-subtitle">
           {isLogin 
-            ? 'Sign in to continue playing chess' 
-            : 'Join our community of chess players'
+            ? 'Welcome back! Ready to play?' 
+            : 'Join thousands of chess players worldwide'
           }
         </p>
         
-        <form className="form" onSubmit={handleSubmit}>
+        <form className="auth-form" onSubmit={handleSubmit}>
           {error && (
-            <div className="error">
-              {error}
+            <div style={{
+              background: '#e74c3c',
+              color: 'white',
+              padding: '12px',
+              borderRadius: '6px',
+              fontSize: '0.9rem',
+              textAlign: 'center',
+              marginBottom: '1rem'
+            }}>
+              ❌ {error}
             </div>
           )}
           
-          <div className="form-group">
-            <label className="form-label">Username</label>
+          <div className="auth-input-group">
+            <label className="auth-label">Email or Username</label>
             <input
               type="text"
               name="username"
               value={formData.username}
               onChange={handleInputChange}
-              className="form-input"
+              className="auth-input"
               required
               placeholder="Enter your username"
             />
           </div>
           
-          <div className="form-group">
-            <label className="form-label">Password</label>
+          <div className="auth-input-group">
+            <label className="auth-label">Password</label>
             <input
               type="password"
               name="password"
               value={formData.password}
               onChange={handleInputChange}
-              className="form-input"
+              className="auth-input"
               required
               placeholder="Enter your password"
             />
@@ -112,24 +133,49 @@ function AuthPage({ setUser }) {
           
           <button 
             type="submit" 
-            className="btn"
+            className="auth-btn"
             disabled={loading || !formData.username || !formData.password}
           >
-            {loading ? 'Please wait...' : (isLogin ? 'Sign In' : 'Create Account')}
+            {loading ? 'Please wait...' : (isLogin ? 'Log In' : 'Sign Up')}
           </button>
         </form>
         
-        <div className="auth-toggle">
-          <p>
-            {isLogin ? "Don't have an account? " : "Already have an account? "}
-            <button 
-              type="button"
-              onClick={() => setIsLogin(!isLogin)}
-            >
-              {isLogin ? 'Create one' : 'Sign in'}
-            </button>
-          </p>
+        <div className="auth-toggle-section">
+          <span className="auth-toggle-text">
+            {isLogin ? "Don't have an account?" : "Already have an account?"}
+          </span>
+          <button 
+            type="button"
+            className="auth-toggle-btn"
+            onClick={() => setIsLogin(!isLogin)}
+          >
+            {isLogin ? 'Sign Up' : 'Log In'}
+          </button>
         </div>
+        
+        {!isLogin && (
+          <div style={{ 
+            marginTop: '1.5rem', 
+            padding: '1rem', 
+            background: 'rgba(129, 182, 76, 0.1)', 
+            borderRadius: '8px',
+            fontSize: '0.85rem',
+            color: '#b3b3b3',
+            lineHeight: '1.5'
+          }}>
+            ✨ Join our community and enjoy:
+            <ul style={{ 
+              textAlign: 'left', 
+              marginTop: '0.5rem', 
+              paddingLeft: '1.5rem',
+              listStyle: 'none'
+            }}>
+              <li>♟️ Unlimited games</li>
+              <li>📊 Track your progress</li>
+              <li>🏆 Compete with players worldwide</li>
+            </ul>
+          </div>
+        )}
       </div>
     </div>
   )

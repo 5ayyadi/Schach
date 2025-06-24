@@ -6,15 +6,7 @@ function ChessBoard({
   onDrop, 
   onSquareClick 
 }) {
-  console.log('ChessBoard render:', { 
-    fen: gameState.fen, 
-    myColor: gameState.myColor, 
-    isMyTurn: gameState.isMyTurn, 
-    gameStatus: gameState.status 
-  })
-
   if (gameState.status === 'waiting') {
-    console.log('ChessBoard: Game is waiting, not rendering board')
     return null
   }
 

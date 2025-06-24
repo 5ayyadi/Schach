@@ -19,8 +19,11 @@ class ApiService {
       'Content-Type': 'application/json',
     }
     
-    if (this.token) {
-      headers.Authorization = `Bearer ${this.token}`
+    // Always get the latest token from localStorage
+    const currentToken = this.token || localStorage.getItem('auth_token')
+    
+    if (currentToken) {
+      headers.Authorization = `Bearer ${currentToken}`
     }
     
     return headers
@@ -28,8 +31,13 @@ class ApiService {
 
   async makeRequest(endpoint, options = {}) {
     const url = `${API_BASE_URL}${endpoint}`
+    const headers = this.getHeaders()
+    
+    // Debug logging
+    console.log('API Request:', { url, headers: { ...headers, Authorization: headers.Authorization ? 'Bearer [TOKEN]' : 'None' } })
+    
     const config = {
-      headers: this.getHeaders(),
+      headers,
       ...options,
     }
 
@@ -38,6 +46,7 @@ class ApiService {
       
       if (!response.ok) {
         const error = await response.json().catch(() => ({ detail: 'Network error' }))
+        console.error('API Error Response:', { status: response.status, error })
         throw new Error(error.detail || `HTTP ${response.status}`)
       }
 
@@ -100,6 +109,38 @@ class ApiService {
     return this.makeRequest(`/games/${gameId}/move`, {
       method: 'POST',
       body: JSON.stringify({ move }),
+    })
+  }
+
+  async getUserGames() {
+    return this.makeRequest('/games/user')
+  }
+
+  async leaveGame(gameId) {
+    return this.makeRequest(`/games/${gameId}/leave`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    })
+  }
+
+  async offerDraw(gameId) {
+    return this.makeRequest(`/games/${gameId}/offer-draw`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    })
+  }
+
+  async acceptDraw(gameId) {
+    return this.makeRequest(`/games/${gameId}/accept-draw`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    })
+  }
+
+  async declineDraw(gameId) {
+    return this.makeRequest(`/games/${gameId}/decline-draw`, {
+      method: 'POST',
+      body: JSON.stringify({}),
     })
   }
 

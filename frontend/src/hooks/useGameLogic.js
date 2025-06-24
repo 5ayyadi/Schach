@@ -1,19 +1,17 @@
 import { useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { apiService } from '../services/api'
 
-function useGameLogic(gameState, setGameState, setGame, setMoveHistory, gameId, timeLeft, setTimeLeft, user, showTempMessage) {
+function useGameLogic(gameState, setGameState, setGame, gameId, timeLeft, setTimeLeft, user, showTempMessage) {
+  const navigate = useNavigate()
   
   // Parse time control string to get initial time in seconds
   const parseTimeControl = useCallback((timeControlString) => {
-    console.log('Parsing time control:', timeControlString)
-    
     if (!timeControlString) {
-      console.log('No time control, using default 5+0')
       return { baseTime: 300, increment: 0 }
     }
     
     if (timeControlString.toLowerCase() === 'daily') {
-      console.log('Daily game detected')
       return { baseTime: null, increment: 0 }
     }
     
@@ -22,7 +20,6 @@ function useGameLogic(gameState, setGameState, setGame, setMoveHistory, gameId, 
       const baseTime = parseInt(parts[0]) * 60
       const increment = parts.length > 1 ? parseInt(parts[1]) : 0
       
-      console.log('Parsed time control:', { baseTime, increment })
       return { baseTime, increment }
     } catch (error) {
       console.warn('Could not parse time control:', timeControlString, 'using default 5+0', error)
@@ -31,16 +28,12 @@ function useGameLogic(gameState, setGameState, setGame, setMoveHistory, gameId, 
   }, [])
 
   const makeMove = useCallback(async (sourceSquare, targetSquare) => {
-    console.log('makeMove called:', { sourceSquare, targetSquare, isMyTurn: gameState.isMyTurn, gameStatus: gameState.status })
-    
     // Early validation
     if (!gameState.isMyTurn) {
-      console.log('makeMove: Not your turn, aborting')
       return false
     }
 
     if (gameState.status !== 'active') {
-      console.log('makeMove: Game not active, aborting')
       return false
     }
 
@@ -50,7 +43,6 @@ function useGameLogic(gameState, setGameState, setGame, setMoveHistory, gameId, 
       
       // Try the move locally first
       const tempGame = new Chess(gameState.fen)
-      console.log('Attempting move on FEN:', gameState.fen)
       
       const move = tempGame.move({
         from: sourceSquare,
@@ -59,37 +51,36 @@ function useGameLogic(gameState, setGameState, setGame, setMoveHistory, gameId, 
       })
 
       if (move === null) {
-        console.log('Invalid move attempted:', { from: sourceSquare, to: targetSquare })
         return false
       }
 
-      console.log('Move is valid locally:', move)
+      // Send move to backend first
+      const moveUCI = sourceSquare + targetSquare + (move.promotion ? move.promotion : '')
+      
+      await apiService.makeMove(gameId, moveUCI)
 
-      // Add time increment for the player who just moved (only for timed games)
+      // Add time increment for the player who just moved (after successful move)
       const { increment } = parseTimeControl(gameState.time_control)
       if (increment > 0 && timeLeft[gameState.currentPlayer] !== null) {
-        console.log('Adding time increment:', { player: gameState.currentPlayer, increment })
         setTimeLeft(prev => ({
           ...prev,
           [gameState.currentPlayer]: prev[gameState.currentPlayer] + increment
         }))
       }
-
-      // Send move to backend
-      const moveUCI = sourceSquare + targetSquare + (move.promotion ? move.promotion : '')
-      console.log('Sending move to backend:', moveUCI)
       
-      await apiService.makeMove(gameId, moveUCI)
-      
-      console.log('Move successfully sent to backend')
       return true
       
     } catch (error) {
       console.error('Failed to make move:', error)
       
+      // Handle authentication errors
+      if (error.message && (error.message.includes('401') || error.message.includes('unauthorized'))) {
+        navigate(`/auth?return=${encodeURIComponent(window.location.pathname)}`)
+        return false
+      }
+      
       // For invalid move errors, show a temporary message
       if (error.message && error.message.toLowerCase().includes('invalid move')) {
-        console.log('Invalid move detected, showing temporary message')
         if (showTempMessage) {
           showTempMessage(`Invalid move: ${sourceSquare} to ${targetSquare}`, 'error', 2000)
         }
@@ -103,29 +94,43 @@ function useGameLogic(gameState, setGameState, setGame, setMoveHistory, gameId, 
       }))
       return false
     }
-  }, [gameState.isMyTurn, gameState.status, gameState.fen, gameState.time_control, gameState.currentPlayer, gameId, parseTimeControl, timeLeft, setTimeLeft, setGameState, showTempMessage])
+  }, [gameState.isMyTurn, gameState.status, gameState.fen, gameState.time_control, gameState.currentPlayer, gameId, parseTimeControl, timeLeft, setTimeLeft, setGameState, showTempMessage, navigate])
 
   const joinGame = useCallback(async () => {
-    console.log('Attempting to join game:', gameId)
+    // Check if user is authenticated
+    if (!user) {
+      navigate(`/auth?return=${encodeURIComponent(window.location.pathname)}`)
+      return
+    }
+    
     try {
       await apiService.joinGame(gameId)
-      console.log('Successfully joined game')
     } catch (error) {
       console.error('Failed to join game:', error)
+      
+      // Handle authentication errors
+      if (error.message && (error.message.includes('401') || error.message.includes('unauthorized'))) {
+        navigate(`/auth?return=${encodeURIComponent(window.location.pathname)}`)
+        return
+      }
+      
+      // Handle case where user is already in the game
+      if (error.message && error.message.includes('already in this game')) {
+        if (showTempMessage) {
+          showTempMessage('You are already in this game', 'info', 2000)
+        }
+        // Don't set error state, just ignore this since they're already in the game
+        return
+      }
+      
       setGameState(prev => ({
         ...prev,
         error: error.message || 'Failed to join game'
       }))
     }
-  }, [gameId, setGameState])
+  }, [gameId, setGameState, user, navigate, showTempMessage])
 
   const getStatusMessage = useCallback(() => {
-    console.log('Getting status message for state:', { 
-      loading: gameState.loading, 
-      error: gameState.error, 
-      status: gameState.status 
-    })
-    
     if (gameState.loading) return 'Loading...'
     if (gameState.error) return `Error: ${gameState.error}`
     
@@ -164,17 +169,15 @@ function useGameLogic(gameState, setGameState, setGame, setMoveHistory, gameId, 
   }, [gameState, timeLeft])
 
   const canJoinGame = useCallback(() => {
+    // User can join if:
+    // 1. Game is waiting for players
+    // 2. No black player yet
+    // 3. User is not the white player
+    // 4. User is not already the black player
     const canJoin = gameState.status === 'waiting' && 
            !gameState.player_black && 
-           gameState.player_white !== user?.username
-    
-    console.log('canJoinGame check:', { 
-      status: gameState.status, 
-      playerBlack: gameState.player_black, 
-      playerWhite: gameState.player_white,
-      currentUser: user?.username,
-      canJoin 
-    })
+           gameState.player_white !== user?.username &&
+           gameState.player_black !== user?.username
     
     return canJoin
   }, [gameState, user])

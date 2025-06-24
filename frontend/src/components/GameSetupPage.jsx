@@ -3,21 +3,29 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { apiService } from '../services/api'
 
 const TIME_CONTROLS = [
-  { id: 'bullet', name: 'Bullet', description: '1 + 0', minutes: 1 },
-  { id: 'blitz', name: 'Blitz', description: '3 + 2', minutes: 3 },
-  { id: 'rapid', name: 'Rapid', description: '10 + 0', minutes: 10 },
-  { id: 'daily', name: 'Daily', description: '24 hours', minutes: 1440 }
+  { id: '1+0', name: '1 | 0', label: 'Bullet', minutes: 1, increment: 0 },
+  { id: '2+1', name: '2 | 1', label: 'Bullet', minutes: 2, increment: 1 },
+  { id: '3+0', name: '3 | 0', label: 'Blitz', minutes: 3, increment: 0 },
+  { id: '3+2', name: '3 | 2', label: 'Blitz', minutes: 3, increment: 2 },
+  { id: '5+0', name: '5 | 0', label: 'Blitz', minutes: 5, increment: 0 },
+  { id: '5+3', name: '5 | 3', label: 'Blitz', minutes: 5, increment: 3 },
+  { id: '10+0', name: '10 | 0', label: 'Rapid', minutes: 10, increment: 0 },
+  { id: '10+5', name: '10 | 5', label: 'Rapid', minutes: 10, increment: 5 },
+  { id: '15+10', name: '15 | 10', label: 'Rapid', minutes: 15, increment: 10 },
+  { id: '30+0', name: '30 | 0', label: 'Classical', minutes: 30, increment: 0 },
+  { id: '30+20', name: '30 | 20', label: 'Classical', minutes: 30, increment: 20 },
+  { id: 'custom', name: 'Custom', label: 'Custom', minutes: 0, increment: 0 }
 ]
 
 const COLORS = [
-  { id: 'white', name: 'White', symbol: '♔' },
-  { id: 'black', name: 'Black', symbol: '♚' },
-  { id: 'random', name: 'Random', symbol: '🎲' }
+  { id: 'white', name: 'White', symbol: '♔', bg: '#f0d9b5' },
+  { id: 'black', name: 'Black', symbol: '♛', bg: '#b58863' },
+  { id: 'random', name: 'Random', symbol: '🎲', bg: 'linear-gradient(45deg, #f0d9b5 50%, #b58863 50%)' }
 ]
 
 function GameSetupPage({ user }) {
-  const [selectedTimeControl, setSelectedTimeControl] = useState('blitz')
-  const [customTime, setCustomTime] = useState(5)
+  const [selectedTimeControl, setSelectedTimeControl] = useState('3+2')
+  const [customTime, setCustomTime] = useState({ minutes: 5, increment: 0 })
   const [selectedColor, setSelectedColor] = useState('random')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -35,9 +43,12 @@ function GameSetupPage({ user }) {
     setError('')
     
     try {
-      const timeControlValue = selectedTimeControl === 'custom' 
-        ? `${customTime}+0`
-        : TIME_CONTROLS.find(tc => tc.id === selectedTimeControl)?.description || '5+0'
+      let timeControlValue
+      if (selectedTimeControl === 'custom') {
+        timeControlValue = `${customTime.minutes}+${customTime.increment}`
+      } else {
+        timeControlValue = selectedTimeControl
+      }
       
       const game = await apiService.createGame(timeControlValue)
       
@@ -50,94 +61,100 @@ function GameSetupPage({ user }) {
     }
   }
 
-  const getTimeControlMinutes = () => {
-    if (selectedTimeControl === 'custom') {
-      return customTime
-    }
-    return TIME_CONTROLS.find(tc => tc.id === selectedTimeControl)?.minutes || 5
-  }
-
   return (
-    <div className="page">
-      <div className="container">
-        <h1 className="title">Setup New Game</h1>
-        <p className="subtitle">Welcome back, {user.username}!</p>
+    <div className="setup-page">
+      <div className="setup-container">
+        <div className="setup-header">
+          <h1 className="setup-title">Play Chess</h1>
+          <p className="setup-subtitle">Choose your time control</p>
+        </div>
         
         {error && (
-          <div className="error">
-            {error}
+          <div className="error-message">
+            ❌ {error}
           </div>
         )}
         
-        <div>
-          <h3 style={{ marginBottom: '1rem', color: '#2c3e50' }}>Time Control</h3>
-          <div className="game-options">
-            {TIME_CONTROLS.map(timeControl => (
+        {/* Time Control Selection - Chess.com style grid */}
+        <div className="time-controls-section">
+          <div className="time-controls-grid">
+            {TIME_CONTROLS.slice(0, -1).map(timeControl => (
               <div
                 key={timeControl.id}
-                className={`option-card ${selectedTimeControl === timeControl.id ? 'selected' : ''}`}
+                className={`time-control-tile ${selectedTimeControl === timeControl.id ? 'selected' : ''}`}
                 onClick={() => setSelectedTimeControl(timeControl.id)}
               >
-                <h4>{timeControl.name}</h4>
-                <p>{timeControl.description}</p>
+                <div className="time-control-time">{timeControl.name}</div>
+                <div className="time-control-type">{timeControl.label}</div>
               </div>
             ))}
             <div
-              className={`option-card ${selectedTimeControl === 'custom' ? 'selected' : ''}`}
+              className={`time-control-tile custom-tile ${selectedTimeControl === 'custom' ? 'selected' : ''}`}
               onClick={() => setSelectedTimeControl('custom')}
             >
-              <h4>Custom</h4>
-              <p>Set your own time</p>
+              <div className="time-control-time">Custom</div>
+              <div className="time-control-type">Your choice</div>
             </div>
           </div>
           
           {selectedTimeControl === 'custom' && (
-            <div className="form-group" style={{ maxWidth: '200px', margin: '1rem auto' }}>
-              <label className="form-label">Minutes per player</label>
-              <input
-                type="number"
-                min="1"
-                max="180"
-                value={customTime}
-                onChange={(e) => setCustomTime(parseInt(e.target.value))}
-                className="form-input"
-              />
+            <div className="custom-time-panel">
+              <h4>Custom Time Control</h4>
+              <div className="custom-inputs">
+                <div className="custom-input-group">
+                  <label>Minutes</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="180"
+                    value={customTime.minutes}
+                    onChange={(e) => setCustomTime({ ...customTime, minutes: parseInt(e.target.value) || 1 })}
+                    className="custom-input"
+                  />
+                </div>
+                <div className="custom-input-group">
+                  <label>Increment (sec)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="60"
+                    value={customTime.increment}
+                    onChange={(e) => setCustomTime({ ...customTime, increment: parseInt(e.target.value) || 0 })}
+                    className="custom-input"
+                  />
+                </div>
+              </div>
             </div>
           )}
         </div>
         
-        <div>
-          <h3 style={{ marginBottom: '1rem', color: '#2c3e50' }}>Choose Color</h3>
-          <div className="game-options">
+        {/* Color Selection */}
+        <div className="color-selection-section">
+          <h3 className="section-title">Choose your side</h3>
+          <div className="color-options-grid">
             {COLORS.map(color => (
               <div
                 key={color.id}
-                className={`option-card ${selectedColor === color.id ? 'selected' : ''}`}
+                className={`color-option-tile ${selectedColor === color.id ? 'selected' : ''}`}
                 onClick={() => setSelectedColor(color.id)}
+                style={{ background: color.bg }}
               >
-                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>
-                  {color.symbol}
-                </div>
-                <h4>{color.name}</h4>
+                <div className="color-symbol">{color.symbol}</div>
+                <div className="color-name">{color.name}</div>
               </div>
             ))}
           </div>
         </div>
         
-        <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+        {/* Create Game Button */}
+        <div className="create-game-section">
           <button 
-            className="btn"
+            className="create-game-btn"
             onClick={handleCreateGame}
             disabled={loading}
           >
             {loading ? 'Creating Game...' : 'Create Game'}
           </button>
-        </div>
-        
-        <div style={{ marginTop: '2rem', padding: '1rem', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
-          <h4 style={{ marginBottom: '0.5rem', color: '#2c3e50' }}>Game Summary</h4>
-          <p><strong>Time Control:</strong> {getTimeControlMinutes()} minutes per player</p>
-          <p><strong>Your Color:</strong> {COLORS.find(c => c.id === selectedColor)?.name}</p>
         </div>
       </div>
     </div>
