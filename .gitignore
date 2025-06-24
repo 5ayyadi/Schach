@@ -13,6 +13,9 @@
 *.swo
 *~
 
+# Node.js dependencies
+node_modules/
+
 # OS
 .DS_Store
 .DS_Store?
@@ -41,3 +44,5 @@ docs/_build/
 
 # test trash files
 tt.*
+e2e-tests/playwright-report/
+e2e-tests/test-results/
