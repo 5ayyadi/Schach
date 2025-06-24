@@ -263,6 +263,177 @@ class GameService:
             # Log error but don't fail the move
             print(f"Failed to publish move to RabbitMQ: {e}")
 
+    async def leave_game(self, game_id: str, username: str) -> GameState:
+        """Leave a game (resign)"""
+        game = await self.repository.get_game(game_id)
+        if not game:
+            raise FileNotFoundError(f"Game {game_id} not found")
+        
+        # Debug logging
+        print(f"[DEBUG] leave_game - game.status: {game.status}, type: {type(game.status)}")
+        print(f"[DEBUG] GameStatus.IN_PROGRESS: {GameStatus.IN_PROGRESS}, type: {type(GameStatus.IN_PROGRESS)}")
+        print(f"[DEBUG] GameStatus.IN_PROGRESS.value: {GameStatus.IN_PROGRESS.value}")
+        
+        # Check if game status is in progress (handle both enum and string values)
+        if game.status != GameStatus.IN_PROGRESS and game.status != "in_progress" and game.status != "active":
+            raise ValueError("Game is not in progress")
+        
+        # Check if user is a player in the game
+        if username not in [game.player_white, game.player_black]:
+            raise ValueError("You are not a player in this game")
+        
+        # Determine winner (opponent)
+        winner = game.player_black if username == game.player_white else game.player_white
+        result = "0-1" if username == game.player_white else "1-0"
+        
+        # Update game state
+        game.status = GameStatus.FINISHED
+        game.result = result
+        game.updated_at = datetime.now(timezone.utc)
+        
+        await self.repository.save_game(game)
+        
+        # Broadcast game end
+        try:
+            await self.message_queue.publish_game_update(game_id, {
+                "type": "game_finished",
+                "game_state": {
+                    "id": game.id,
+                    "fen": game.current_fen,
+                    "status": "finished",
+                    "player_white": game.player_white,
+                    "player_black": game.player_black,
+                    "time_control": game.time_control,
+                    "result": game.result,
+                    "winner": winner,
+                    "reason": "resignation",
+                    "resigned_player": username
+                },
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            })
+        except Exception as e:
+            print(f"Failed to broadcast game end: {e}")
+        
+        return game
+
+    async def offer_draw(self, game_id: str, username: str) -> dict:
+        """Offer a draw to the opponent"""
+        game = await self.repository.get_game(game_id)
+        if not game:
+            raise FileNotFoundError(f"Game {game_id} not found")
+        
+        # Debug logging
+        print(f"[DEBUG] offer_draw - game.status: {game.status}, type: {type(game.status)}")
+        print(f"[DEBUG] GameStatus.IN_PROGRESS: {GameStatus.IN_PROGRESS}, type: {type(GameStatus.IN_PROGRESS)}")
+        print(f"[DEBUG] GameStatus.IN_PROGRESS.value: {GameStatus.IN_PROGRESS.value}")
+        
+        # Check if game status is in progress (handle both enum and string values)
+        if game.status != GameStatus.IN_PROGRESS and game.status != "in_progress" and game.status != "active":
+            raise ValueError("Game is not in progress")
+        
+        # Check if user is a player in the game
+        if username not in [game.player_white, game.player_black]:
+            raise ValueError("You are not a player in this game")
+        
+        opponent = game.player_black if username == game.player_white else game.player_white
+        
+        # Broadcast draw offer to opponent
+        try:
+            from routers.websocket import broadcast_to_game
+            await broadcast_to_game(game_id, {
+                "type": "draw_offered",
+                "game_id": game_id,
+                "from_player": username,
+                "to_player": opponent,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            })
+        except Exception as e:
+            print(f"Failed to broadcast draw offer: {e}")
+        
+        return {
+            "message": "Draw offer sent",
+            "to_player": opponent
+        }
+
+    async def accept_draw(self, game_id: str, username: str) -> dict:
+        """Accept a draw offer and end the game as a draw"""
+        game = await self.repository.get_game(game_id)
+        if not game:
+            raise FileNotFoundError("Game not found")
+        
+        # Validate game status
+        if game.status not in [GameStatus.IN_PROGRESS, "in_progress", "active"]:
+            raise ValueError("Game is not active")
+        
+        # Check if user is a player in the game
+        if username not in [game.player_white, game.player_black]:
+            raise ValueError("You are not a player in this game")
+        
+        # End the game as a draw
+        game.status = GameStatus.FINISHED
+        game.result = "1/2-1/2"
+        game.updated_at = datetime.now(timezone.utc)
+        
+        await self.repository.save_game(game)
+        
+        # Broadcast game end to both players
+        try:
+            await self.message_queue.publish_game_update(game_id, {
+                "type": "game_finished",
+                "game_state": {
+                    "id": game.id,
+                    "fen": game.current_fen,
+                    "status": "finished",
+                    "player_white": game.player_white,
+                    "player_black": game.player_black,
+                    "time_control": game.time_control,
+                    "result": game.result,
+                    "winner": None,
+                    "reason": "draw_accepted"
+                },
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            })
+        except Exception as e:
+            print(f"Failed to broadcast draw acceptance: {e}")
+        
+        return {
+            "message": "Draw accepted. Game ended as a draw.",
+            "result": game.result
+        }
+
+    async def decline_draw(self, game_id: str, username: str) -> dict:
+        """Decline a draw offer"""
+        game = await self.repository.get_game(game_id)
+        if not game:
+            raise FileNotFoundError("Game not found")
+        
+        # Validate game status
+        if game.status not in [GameStatus.IN_PROGRESS, "in_progress", "active"]:
+            raise ValueError("Game is not active")
+        
+        # Check if user is a player in the game
+        if username not in [game.player_white, game.player_black]:
+            raise ValueError("You are not a player in this game")
+        
+        # Determine the opponent
+        opponent = game.player_black if username == game.player_white else game.player_white
+        
+        # Broadcast draw decline to the opponent
+        try:
+            await self.message_queue.publish_game_update(game_id, {
+                "type": "draw_declined",
+                "from_player": username,
+                "to_player": opponent,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            })
+        except Exception as e:
+            print(f"Failed to broadcast draw decline: {e}")
+        
+        return {
+            "message": "Draw offer declined",
+            "declined_by": username
+        }
+
 
 # Global service instance
 game_service = GameService()

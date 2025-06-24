@@ -39,13 +39,18 @@ class GameResponse(BaseModel):
     @classmethod
     def from_game_state(cls, game: GameState) -> "GameResponse":
         """Convert GameState to API response"""
+        # Convert status to match frontend expectations
+        status = game.status.value if hasattr(game.status, 'value') else game.status
+        if status == "in_progress":
+            status = "active"
+        
         return cls(
             id=game.id,
             player_white=game.player_white,
             player_black=game.player_black,
             fen=game.current_fen,
             time_control=game.time_control,
-            status=game.status.value if hasattr(game.status, 'value') else game.status,
+            status=status,
             result=game.result,
             created_at=game.created_at.isoformat(),
             updated_at=game.updated_at.isoformat()
